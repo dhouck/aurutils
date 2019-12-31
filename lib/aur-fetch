@@ -119,8 +119,6 @@ fi | while read -r pkg; do
     if [[ -d $pkg ]] && git rev-parse --git-dir >/dev/null; then
         if (( confirm_seen )); then
             git update-ref AUR_SEEN HEAD
-
-            msg2 >&2 'Marked repository %s as seen' "$pkg"
             continue # skip diff logic
         fi
 
@@ -177,7 +175,6 @@ fi | while read -r pkg; do
     elif git clone "$AUR_LOCATION/$pkg" "$GIT_DIR"; then
         if (( confirm_seen )); then
             git update-ref AUR_SEEN HEAD
-            msg2 >&2 'Marked new repository %s as seen' "$pkg"
         fi
 
         # Show PKGBUILDs first. (#399)
