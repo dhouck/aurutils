@@ -38,7 +38,7 @@ if ! parseopts "$opt_short" "${opt_long[@]}" "${opt_hidden[@]}" -- "$@"; then
 fi
 set -- "${OPTRET[@]}"
 
-unset log_dir
+unset log_dir results_file
 while true; do
     case "$1" in
         -L|--write-log)
@@ -55,7 +55,7 @@ while true; do
                 auto|reset|rebase|no)
                     sync=$1 ;;
                 *)
-                    error '%s: invalid --sync option: %s' "$argv0" "$1"
+                    error '%s: Invalid --sync option: %s' "$argv0" "$1"
                     usage ;;
             esac ;;
         --format)
@@ -64,7 +64,7 @@ while true; do
                 diff|log)
                     log_fmt=$1 ;;
                 *)
-                    error '%s: invalid --format option: %s' "$argv0" "$1"
+                    error '%s: Invalid --format option: %s' "$argv0" "$1"
                     usage ;;
             esac ;;
         --confirm-seen)
@@ -80,7 +80,7 @@ while true; do
     shift
 done
 
-if [[ -v $log_dir ]] && [[ ! -d $log_dir ]]; then
+if [[ -v log_dir ]] && [[ ! -d $log_dir ]]; then
     error '%s: %s: Not a directory' "$argv0" "$log_dir"
     exit 20
 fi
@@ -112,11 +112,11 @@ if (( recurse )); then
 else
    printf '%s\n' "$@"
 fi | while read -r pkg; do
-    # Reset/rebase if we are on valid repo
-    if GIT_DIR=$pkg/.git git rev-parse --git-dir >/dev/null 2>&1; then
-        # Avoid issues with filesystem boundaries. (#274)
-        export GIT_DIR=$pkg/.git GIT_WORK_TREE=$pkg
+    # Avoid issues with filesystem boundaries. (#274)
+    export GIT_DIR=$pkg/.git GIT_WORK_TREE=$pkg
 
+    # Reset/rebase if we are on valid repo
+    if [[ -d $pkg ]] && git rev-parse --git-dir >/dev/null; then
         if (( confirm_seen )); then
             git update-ref AUR_SEEN HEAD
 
@@ -148,7 +148,7 @@ fi | while read -r pkg; do
         }
 
         if ! seen=$(git rev-parse --quiet --verify AUR_SEEN); then
-            warning '%s: AUR_SEEN object not found for %s, assuming empty tree' "$pkg" "$argv0"
+            warning '%s: AUR_SEEN object not found for %s, assuming empty tree' "$argv0" "$pkg"
             seen=$(git hash-object -t tree /dev/null)
         fi
 
@@ -169,14 +169,15 @@ fi | while read -r pkg; do
             printf 'fetch:file://%s\n' "$PWD/$pkg" | tee -a "$results_file"
         fi
 
-    # Otherwise, try to clone anew
-    elif git clone "$AUR_LOCATION/$pkg"; then
-        # Avoid issues with filesystem boundaries. (#274)
-        export GIT_DIR=$pkg/.git GIT_WORK_TREE=$pkg
+    elif [[ -d $pkg ]]; then
+        error '%s: %s is not a valid git repository' "$argv0" "$pkg"
+        exit 22
 
+    # Otherwise, try to clone anew
+    elif git clone "$AUR_LOCATION/$pkg" "$GIT_DIR"; then
         if (( confirm_seen )); then
             git update-ref AUR_SEEN HEAD
-            msg2 'Marked new repository %s as seen' "$pkg"
+            msg2 >&2 'Marked new repository %s as seen' "$pkg"
         fi
 
         # Show PKGBUILDs first. (#399)
